@@ -260,6 +260,7 @@ pub fn run_keygen(addr: &String, keysfile_path: &String, params: &Vec<&str>) {
 }
 
 pub fn keygen_signup(addr: &String, client: &Client, params: &KeygenParams) -> Result<PartySignup, ()> {
-    let res_body = postb(&addr, &client, "signupkeygen", params).unwrap();
+    let res_body = postb(&addr, &client, "mpc/keygen", params).unwrap();
+    println!("Response body: {}", res_body);
     serde_json::from_str(&res_body).unwrap()
 }

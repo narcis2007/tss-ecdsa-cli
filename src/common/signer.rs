@@ -624,7 +624,7 @@ where
 }
 
 pub fn signup(addr: &String, client: &Client, params: &SignParams) -> Result<PartySignup, ()> {
-    let res_body = postb(&addr, &client, "signupsign", params).unwrap();
+    let res_body = postb(&addr, &client, "mpc/sign", params).unwrap();
     let answer: Result<PartySignup, ()> = serde_json::from_str(&res_body).unwrap();
     return answer;
 }

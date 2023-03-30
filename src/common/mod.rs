@@ -148,7 +148,7 @@ pub fn broadcast(
         value: data,
     };
 
-    let res_body = postb(&addr, &client, "set", entry).unwrap();
+    let res_body = postb(&addr, &client, "mpc/set", entry).unwrap();
     serde_json::from_str(&res_body).unwrap()
 }
 
@@ -168,7 +168,7 @@ pub fn sendp2p(
         value: data,
     };
 
-    let res_body = postb(&addr, &client, "set", entry).unwrap();
+    let res_body = postb(&addr, &client, "mpc/set", entry).unwrap();
     serde_json::from_str(&res_body).unwrap()
 }
 
@@ -189,7 +189,7 @@ pub fn poll_for_broadcasts(
             loop {
                 // add delay to allow the server to process request:
                 thread::sleep(delay);
-                let res_body = postb(&addr, &client, "get", index.clone()).unwrap();
+                let res_body = postb(&addr, &client, "mpc/get", index.clone()).unwrap();
                 let answer: Result<Entry, ()> = serde_json::from_str(&res_body).unwrap();
                 if let Ok(answer) = answer {
                     ans_vec.push(answer.value);
@@ -219,7 +219,7 @@ pub fn poll_for_p2p(
             loop {
                 // add delay to allow the server to process request:
                 thread::sleep(delay);
-                let res_body = postb(&addr, &client, "get", index.clone()).unwrap();
+                let res_body = postb(&addr, &client, "mpc/get", index.clone()).unwrap();
                 let answer: Result<Entry, ()> = serde_json::from_str(&res_body).unwrap();
                 if let Ok(answer) = answer {
                     ans_vec.push(answer.value);
