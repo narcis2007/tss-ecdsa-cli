@@ -3,6 +3,7 @@ pub mod keygen;
 pub mod manager;
 pub mod signer;
 
+use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
 use std::{iter::repeat, thread, time, time::Duration};
 
 use aes_gcm::{Aes256Gcm, Nonce};
@@ -107,7 +108,7 @@ pub fn aes_decrypt(key: &[u8], aead_pack: AEAD) -> Vec<u8> {
     out.unwrap_or_default()
 }
 
-pub fn postb<T>(addr: &String, client: &Client, path: &str, body: T) -> Option<String>
+pub fn postb<T>(addr: &String, client: &Client, path: &str, body: T, secret: &str) -> Option<String>
 where
     T: serde::ser::Serialize,
 {
@@ -122,9 +123,15 @@ where
     //    }
     let retries = 3;
     let retry_delay = time::Duration::from_millis(250);
+    let mut headers = HeaderMap::new();
+    headers.extend([(
+        AUTHORIZATION,
+        HeaderValue::from_str(&format!("Bearer {}", secret)).unwrap(),
+    )]);
+
     for _i in 1..retries {
         let addr = format!("{}/{}", addr, path);
-        let res = client.post(&addr).json(&body).send();
+        let res = client.post(&addr).headers(headers.clone()).json(&body).send();
 
         if let Ok(res) = res {
             return Some(res.text().unwrap());
@@ -141,6 +148,7 @@ pub fn broadcast(
     round: &str,
     data: String,
     sender_uuid: String,
+    secret: &str,
 ) -> Result<(), ()> {
     let key = format!("{}-{}-{}", party_num, round, sender_uuid);
     let entry = Entry {
@@ -148,7 +156,7 @@ pub fn broadcast(
         value: data,
     };
 
-    let res_body = postb(&addr, &client, "mpc/set", entry).unwrap();
+    let res_body = postb(&addr, &client, "mpc/set", entry, secret).unwrap();
     serde_json::from_str(&res_body).unwrap()
 }
 
@@ -160,6 +168,7 @@ pub fn sendp2p(
     round: &str,
     data: String,
     sender_uuid: String,
+    secret: &str,
 ) -> Result<(), ()> {
     let key = format!("{}-{}-{}-{}", party_from, party_to, round, sender_uuid);
 
@@ -168,7 +177,7 @@ pub fn sendp2p(
         value: data,
     };
 
-    let res_body = postb(&addr, &client, "mpc/set", entry).unwrap();
+    let res_body = postb(&addr, &client, "mpc/set", entry, secret).unwrap();
     serde_json::from_str(&res_body).unwrap()
 }
 
@@ -180,6 +189,7 @@ pub fn poll_for_broadcasts(
     delay: Duration,
     round: &str,
     sender_uuid: String,
+    secret: &str,
 ) -> Vec<String> {
     let mut ans_vec = Vec::new();
     for i in 1..=n {
@@ -189,7 +199,7 @@ pub fn poll_for_broadcasts(
             loop {
                 // add delay to allow the server to process request:
                 thread::sleep(delay);
-                let res_body = postb(&addr, &client, "mpc/get", index.clone()).unwrap();
+                let res_body = postb(&addr, &client, "mpc/get", index.clone(), secret).unwrap();
                 let answer: Result<Entry, ()> = serde_json::from_str(&res_body).unwrap();
                 if let Ok(answer) = answer {
                     ans_vec.push(answer.value);
@@ -210,6 +220,7 @@ pub fn poll_for_p2p(
     delay: Duration,
     round: &str,
     sender_uuid: String,
+    secret: &str,
 ) -> Vec<String> {
     let mut ans_vec = Vec::new();
     for i in 1..=n {
@@ -219,7 +230,7 @@ pub fn poll_for_p2p(
             loop {
                 // add delay to allow the server to process request:
                 thread::sleep(delay);
-                let res_body = postb(&addr, &client, "mpc/get", index.clone()).unwrap();
+                let res_body = postb(&addr, &client, "mpc/get", index.clone(), secret).unwrap();
                 let answer: Result<Entry, ()> = serde_json::from_str(&res_body).unwrap();
                 if let Ok(answer) = answer {
                     ans_vec.push(answer.value);

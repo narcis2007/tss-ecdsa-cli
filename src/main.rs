@@ -53,7 +53,12 @@ fn main() {
                     .short("a")
                     .long("addr")
                     .takes_value(true)
-                    .help("URL to manager. E.g. http://127.0.0.2:8002")),
+                    .help("URL to manager. E.g. http://127.0.0.2:8002"))
+                .arg(Arg::with_name("secret")
+                    .short("s")
+                    .long("secret")
+                    .takes_value(true)
+                    .help("Secret for Manager")),
             SubCommand::with_name("pubkey").about("Get X,Y of a pub key")
                 .arg(Arg::with_name("keysfile")
                     .required(true)
@@ -91,6 +96,11 @@ fn main() {
                     .long("addr")
                     .takes_value(true)
                     .help("URL to manager"))
+                .arg(Arg::with_name("secret")
+                    .short("s")
+                    .long("secret")
+                    .takes_value(true)
+                    .help("Secret for Manager")),
         ])
         .get_matches();
 
@@ -139,6 +149,11 @@ fn main() {
                     .unwrap_or("http://127.0.0.1:8001")
                     .to_string();
 
+                let secret = sub_matches
+                    .value_of("secret")
+                    .unwrap_or("")
+                    .to_string();
+
                 // Parse threshold params
                 let params: Vec<&str> = sub_matches
                     .value_of("params")
@@ -165,6 +180,7 @@ fn main() {
                     &message,
                     &f_l_new,
                     !path.is_empty(),
+                    &secret,
                 )
             }
         }
@@ -183,7 +199,11 @@ fn main() {
                 .unwrap_or("")
                 .split("/")
                 .collect();
-            keygen::run_keygen(&addr, &keysfile_path, &params);
+            let secret = sub_matches
+                .value_of("secret")
+                .unwrap_or("")
+                .to_string();
+            keygen::run_keygen(&addr, &keysfile_path, &params, &secret);
         }
         _ => {}
     }

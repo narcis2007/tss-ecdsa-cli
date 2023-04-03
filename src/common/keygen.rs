@@ -17,7 +17,7 @@ use reqwest::blocking::Client;
 
 use crate::common::{aes_decrypt, aes_encrypt, broadcast, poll_for_broadcasts, poll_for_p2p, postb, sendp2p, PartySignup, AEAD, KeygenParams};
 
-pub fn run_keygen(addr: &String, keysfile_path: &String, params: &Vec<&str>) {
+pub fn run_keygen(addr: &String, keysfile_path: &String, params: &Vec<&str>, secret: &str) {
     let THRESHOLD: u16 = params[0].parse::<u16>().unwrap();
     let PARTIES: u16 = params[1].parse::<u16>().unwrap();
 
@@ -35,7 +35,7 @@ pub fn run_keygen(addr: &String, keysfile_path: &String, params: &Vec<&str>) {
         threshold: THRESHOLD.to_string(),
         parties: PARTIES.to_string(),
     };
-    let (party_num_int, uuid) = match keygen_signup(&addr, &client, &tn_params).unwrap() {
+    let (party_num_int, uuid) = match keygen_signup(&addr, &client, &tn_params, secret).unwrap() {
         PartySignup { number, uuid } => (number, uuid),
     };
     println!("number: {:?}, uuid: {:?}", party_num_int, uuid);
@@ -51,6 +51,7 @@ pub fn run_keygen(addr: &String, keysfile_path: &String, params: &Vec<&str>) {
         "round1",
         serde_json::to_string(&bc_i).unwrap(),
         uuid.clone(),
+        secret,
     )
     .is_ok());
     let round1_ans_vec = poll_for_broadcasts(
@@ -61,6 +62,7 @@ pub fn run_keygen(addr: &String, keysfile_path: &String, params: &Vec<&str>) {
         delay,
         "round1",
         uuid.clone(),
+        secret,
     );
 
     let mut bc1_vec = round1_ans_vec
@@ -78,6 +80,7 @@ pub fn run_keygen(addr: &String, keysfile_path: &String, params: &Vec<&str>) {
         "round2",
         serde_json::to_string(&decom_i).unwrap(),
         uuid.clone(),
+        secret,
     )
     .is_ok());
     let round2_ans_vec = poll_for_broadcasts(
@@ -88,6 +91,7 @@ pub fn run_keygen(addr: &String, keysfile_path: &String, params: &Vec<&str>) {
         delay,
         "round2",
         uuid.clone(),
+        secret,
     );
 
     let mut j = 0;
@@ -133,6 +137,7 @@ pub fn run_keygen(addr: &String, keysfile_path: &String, params: &Vec<&str>) {
                 "round3",
                 serde_json::to_string(&aead_pack_i).unwrap(),
                 uuid.clone(),
+                secret,
             )
             .is_ok());
             j += 1;
@@ -147,6 +152,7 @@ pub fn run_keygen(addr: &String, keysfile_path: &String, params: &Vec<&str>) {
         delay,
         "round3",
         uuid.clone(),
+        secret,
     );
 
     let mut j = 0;
@@ -174,6 +180,7 @@ pub fn run_keygen(addr: &String, keysfile_path: &String, params: &Vec<&str>) {
         "round4",
         serde_json::to_string(&vss_scheme).unwrap(),
         uuid.clone(),
+        secret,
     )
     .is_ok());
     let round4_ans_vec = poll_for_broadcasts(
@@ -184,6 +191,7 @@ pub fn run_keygen(addr: &String, keysfile_path: &String, params: &Vec<&str>) {
         delay,
         "round4",
         uuid.clone(),
+        secret,
     );
 
     let mut j = 0;
@@ -216,6 +224,7 @@ pub fn run_keygen(addr: &String, keysfile_path: &String, params: &Vec<&str>) {
         "round5",
         serde_json::to_string(&dlog_proof).unwrap(),
         uuid.clone(),
+        secret,
     )
     .is_ok());
     let round5_ans_vec = poll_for_broadcasts(
@@ -226,6 +235,7 @@ pub fn run_keygen(addr: &String, keysfile_path: &String, params: &Vec<&str>) {
         delay,
         "round5",
         uuid.clone(),
+        secret,
     );
 
     let mut j = 0;
@@ -259,8 +269,8 @@ pub fn run_keygen(addr: &String, keysfile_path: &String, params: &Vec<&str>) {
     fs::write(&keysfile_path, keygen_json).expect("Unable to save !");
 }
 
-pub fn keygen_signup(addr: &String, client: &Client, params: &KeygenParams) -> Result<PartySignup, ()> {
-    let res_body = postb(&addr, &client, "mpc/keygen", params).unwrap();
+pub fn keygen_signup(addr: &String, client: &Client, params: &KeygenParams, secret: &str) -> Result<PartySignup, ()> {
+    let res_body = postb(&addr, &client, "mpc/keygen", params, secret).unwrap();
     println!("Response body: {}", res_body);
     serde_json::from_str(&res_body).unwrap()
 }

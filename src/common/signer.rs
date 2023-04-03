@@ -4,7 +4,7 @@ extern crate multi_party_ecdsa;
 extern crate paillier;
 extern crate reqwest;
 extern crate serde_json;
-
+use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
 use std::time;
 
 use curv::cryptographic_primitives::proofs::sigma_correct_homomorphic_elgamal_enc::HomoELGamalProof;
@@ -45,13 +45,14 @@ pub fn sign(
     message: &[u8],
     f_l_new: &FE,
     sign_at_path: bool,
+    secret: &str,
 ) {
     let client = Client::new();
     let delay = time::Duration::from_millis(25);
     let THRESHOLD = params.threshold.parse::<u16>().unwrap();
 
     // Signup
-    let (party_num_int, uuid) = match signup(&addr, &client, &params).unwrap() {
+    let (party_num_int, uuid) = match signup(&addr, &client, &params, secret).unwrap() {
         PartySignup { number, uuid } => (number, uuid),
     };
 
@@ -66,6 +67,7 @@ pub fn sign(
         "round0",
         serde_json::to_string(&party_id).unwrap(),
         uuid.clone(),
+        secret,
     )
     .is_ok());
 
@@ -77,6 +79,7 @@ pub fn sign(
         delay,
         "round0",
         uuid.clone(),
+        secret,
     );
     let mut j = 0;
     let mut signers_vec: Vec<usize> = Vec::new();
@@ -150,6 +153,7 @@ pub fn sign(
         "round1",
         serde_json::to_string(&(com.clone(), m_a_k.clone())).unwrap(),
         uuid.clone(),
+        secret,
     )
     .is_ok());
     let round1_ans_vec = poll_for_broadcasts(
@@ -160,6 +164,7 @@ pub fn sign(
         delay,
         "round1",
         uuid.clone(),
+        secret,
     );
 
     let mut j = 0;
@@ -225,6 +230,7 @@ pub fn sign(
                 serde_json::to_string(&(m_b_gamma_send_vec[j].clone(), m_b_w_send_vec[j].clone()))
                     .unwrap(),
                 uuid.clone(),
+                secret,
             )
             .is_ok());
             j = j + 1;
@@ -239,6 +245,7 @@ pub fn sign(
         delay,
         "round2",
         uuid.clone(),
+        secret,
     );
 
     let mut m_b_gamma_rec_vec: Vec<MessageB> = Vec::new();
@@ -296,6 +303,7 @@ pub fn sign(
         "round3",
         serde_json::to_string(&delta_i).unwrap(),
         uuid.clone(),
+        secret,
     )
     .is_ok());
     let round3_ans_vec = poll_for_broadcasts(
@@ -306,6 +314,7 @@ pub fn sign(
         delay,
         "round3",
         uuid.clone(),
+        secret,
     );
     let mut delta_vec: Vec<FE> = Vec::new();
     format_vec_from_reads(
@@ -325,6 +334,7 @@ pub fn sign(
         "round4",
         serde_json::to_string(&decommit).unwrap(),
         uuid.clone(),
+        secret,
     )
     .is_ok());
     let round4_ans_vec = poll_for_broadcasts(
@@ -335,6 +345,7 @@ pub fn sign(
         delay,
         "round4",
         uuid.clone(),
+        secret,
     );
 
     let mut decommit_vec: Vec<SignDecommitPhase1> = Vec::new();
@@ -374,6 +385,7 @@ pub fn sign(
         "round5",
         serde_json::to_string(&phase5_com).unwrap(),
         uuid.clone(),
+        secret,
     )
     .is_ok());
     let round5_ans_vec = poll_for_broadcasts(
@@ -384,6 +396,7 @@ pub fn sign(
         delay.clone(),
         "round5",
         uuid.clone(),
+        secret,
     );
 
     let mut commit5a_vec: Vec<Phase5Com1> = Vec::new();
@@ -407,6 +420,7 @@ pub fn sign(
         ))
         .unwrap(),
         uuid.clone(),
+        secret,
     )
     .is_ok());
     let round6_ans_vec = poll_for_broadcasts(
@@ -417,6 +431,7 @@ pub fn sign(
         delay.clone(),
         "round6",
         uuid.clone(),
+        secret,
     );
 
     let mut decommit5a_and_elgamal_and_dlog_vec: Vec<(
@@ -465,6 +480,7 @@ pub fn sign(
         "round7",
         serde_json::to_string(&phase5_com2).unwrap(),
         uuid.clone(),
+        secret,
     )
     .is_ok());
     let round7_ans_vec = poll_for_broadcasts(
@@ -475,6 +491,7 @@ pub fn sign(
         delay.clone(),
         "round7",
         uuid.clone(),
+        secret,
     );
 
     let mut commit5c_vec: Vec<Phase5Com2> = Vec::new();
@@ -493,6 +510,7 @@ pub fn sign(
         "round8",
         serde_json::to_string(&phase_5d_decom2).unwrap(),
         uuid.clone(),
+        secret,
     )
     .is_ok());
     let round8_ans_vec = poll_for_broadcasts(
@@ -503,6 +521,7 @@ pub fn sign(
         delay.clone(),
         "round8",
         uuid.clone(),
+        secret,
     );
 
     let mut decommit5d_vec: Vec<Phase5DDecom2> = Vec::new();
@@ -532,6 +551,7 @@ pub fn sign(
         "round9",
         serde_json::to_string(&s_i).unwrap(),
         uuid.clone(),
+        secret,
     )
     .is_ok());
     let round9_ans_vec = poll_for_broadcasts(
@@ -542,6 +562,7 @@ pub fn sign(
         delay.clone(),
         "round9",
         uuid.clone(),
+        secret,
     );
 
     let mut s_i_vec: Vec<FE> = Vec::new();
@@ -612,19 +633,25 @@ fn format_vec_from_reads<'a, T: serde::Deserialize<'a> + Clone>(
     }
 }
 
-pub fn postb<T>(addr: &String, client: &Client, path: &str, body: T) -> Option<String>
+pub fn postb<T>(addr: &String, client: &Client, path: &str, body: T, secret: &str) -> Option<String>
 where
     T: serde::ser::Serialize,
 {
+    let mut headers = HeaderMap::new();
+    headers.extend([(
+        AUTHORIZATION,
+        HeaderValue::from_str(&format!("Bearer {}", secret)).unwrap(),
+    )]);
     let res = client
         .post(&format!("{}/{}", addr, path))
+        .headers(headers.clone())
         .json(&body)
         .send();
     Some(res.unwrap().text().unwrap())
 }
 
-pub fn signup(addr: &String, client: &Client, params: &SignParams) -> Result<PartySignup, ()> {
-    let res_body = postb(&addr, &client, "mpc/sign", params).unwrap();
+pub fn signup(addr: &String, client: &Client, params: &SignParams, secret: &str) -> Result<PartySignup, ()> {
+    let res_body = postb(&addr, &client, "mpc/sign", params, secret).unwrap();
     let answer: Result<PartySignup, ()> = serde_json::from_str(&res_body).unwrap();
     return answer;
 }
